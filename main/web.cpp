@@ -7,6 +7,7 @@
 #include "esp_log.h"
 #include <sstream>
 #include <string.h>
+#include "esp_app_desc.h"
 
 extern "C" const char *TAG;
 #define MULTILINE_STRING(...) #__VA_ARGS__
@@ -40,6 +41,11 @@ static void unencode(char *buf, const char *src, int size) {
 class Ch4ConfigPortal : public HttpGetHandler {
 public:
     esp_err_t getHandler(httpd_req_t *req) override {
+        const esp_app_desc_t *app_desc = esp_app_get_description();
+        char versionDetail[110] = {0};
+        snprintf((char *)versionDetail, sizeof versionDetail, "%s %s %s",
+               app_desc->version, app_desc->date, app_desc->time);
+
         static char buffer[1024];
 
         if (startsWith(req->uri, "/process")) {
@@ -163,6 +169,7 @@ public:
 
             "<h2>Actions</h2>\n"
             "<button id='ota_btn' onclick='trigger_ota(this)'>Trigger HTTP OTA Update</button>\n"
+            << versionDetail <<
             "<button onclick='window.location.href = \"/close\"'>Restart / Apply WiFi</button>\n"
             "</body></html>";
 

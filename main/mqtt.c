@@ -20,7 +20,7 @@ static SemaphoreHandle_t publish_mutex = NULL;
 
 static void publish_state(void) {
     if (!mqtt_client || !device_topic_base[0] || !publish_mutex) return;
-    
+
     if (xSemaphoreTake(publish_mutex, pdMS_TO_TICKS(10000)) != pdTRUE) {
         ESP_LOGE(TAG, "Failed to acquire lock for MQTT publish");
         return;
@@ -35,7 +35,7 @@ static void publish_state(void) {
     cJSON *root = cJSON_CreateObject();
     cJSON_AddStringToObject(root, "mode", cfg.mode);
     cJSON_AddBoolToObject(root, "pause", cfg.pause);
-    
+
     cJSON *meta = cJSON_CreateObject();
     cJSON_AddStringToObject(meta, "name", cfg.device_name[0] ? cfg.device_name : "CH4");
 
@@ -56,26 +56,31 @@ static void publish_state(void) {
         cJSON_AddNumberToObject(meta, "rssi", 0);
     }
 
+    char versionDetail[110] = {0};
     const esp_app_desc_t *app_desc = esp_app_get_description();
-    
+    if (app_desc) {
+        snprintf((char *)versionDetail, sizeof versionDetail, "%s %s %s",
+               app_desc->version, app_desc->date, app_desc->time);
+    }
+
     char *info_json = malloc(256);
     if (info_json) {
-        snprintf(info_json, 256, 
-            "{\"model\":\"CH4\",\"state_version\":1,\"build\":\"%s\",\"writeable\":[\"mode\",\"pause\"]}", 
-            app_desc ? app_desc->version : "unknown");
-            
+        snprintf(info_json, 256,
+            "{\"model\":\"CH4\",\"state_version\":1,\"build\":\"%s\",\"writeable\":[\"mode\",\"pause\"]}",
+            versionDetail);
+
         cJSON *info_node = cJSON_Parse(info_json);
         if (info_node) {
             cJSON_AddItemToObject(meta, "info", info_node);
         }
         free(info_json);
     }
-    
+
     cJSON_AddItemToObject(root, "meta", meta);
 
     char *json_str = cJSON_PrintUnformatted(root);
     esp_mqtt_client_publish(mqtt_client, device_topic_base, json_str, 0, 1, 1); // QoS 1, Retained
-    
+
     free(json_str);
     cJSON_Delete(root);
     xSemaphoreGive(publish_mutex);
@@ -124,7 +129,7 @@ void process_state_json(const char *json_payload) {
 
 static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data) {
     esp_mqtt_event_handle_t event = (esp_mqtt_event_handle_t)event_data;
-    
+
     switch (event->event_id) {
         case MQTT_EVENT_CONNECTED:
             ESP_LOGI(TAG, "MQTT Connected");
@@ -135,17 +140,17 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
                 publish_state();
             }
             break;
-            
+
         case MQTT_EVENT_DATA:
             if (event->topic_len > 0 && event->data_len > 0) {
                 char topic[128] = {0};
                 char data[512] = {0}; // reasonable limit for control payloads
                 strncpy(topic, event->topic, event->topic_len < sizeof(topic)-1 ? event->topic_len : sizeof(topic)-1);
                 strncpy(data, event->data, event->data_len < sizeof(data)-1 ? event->data_len : sizeof(data)-1);
-                
+
                 char expected_topic[128];
                 snprintf(expected_topic, sizeof(expected_topic), "%s/set", device_topic_base);
-                
+
                 if (strcmp(topic, expected_topic) == 0) {
                     process_state_json(data);
                     // Clear the retained set topic from the broker so it doesn't refire on next boot
@@ -153,11 +158,11 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
                 }
             }
             break;
-            
+
         case MQTT_EVENT_DISCONNECTED:
             ESP_LOGI(TAG, "MQTT Disconnected");
             break;
-            
+
         default:
             break;
     }
@@ -172,7 +177,7 @@ static void mqtt_keepalive_task(void *pvParameter) {
 
 void mqtt_start(const char *url, const char *device_name) {
     snprintf(device_topic_base, sizeof(device_topic_base), "FreeHouse/%s", device_name);
-    
+
     char full_uri[160];
     if (strncmp(url, "mqtt://", 7) == 0 || strncmp(url, "mqtts://", 8) == 0) {
         strncpy(full_uri, url, sizeof(full_uri) - 1);
