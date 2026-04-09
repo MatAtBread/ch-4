@@ -46,7 +46,7 @@ public:
             const char *json = strchr(req->uri, '?');
             if (json) {
                 unencode(buffer, json + 1, sizeof(buffer));
-                
+
                 // Parse the JSON. If it has connectivity fields, update NVS directly.
                 cJSON *root = cJSON_Parse(buffer);
                 if (root) {
@@ -117,32 +117,40 @@ public:
                             v = (e.type === 'checkbox') ? e.checked : e.value;
                         }
                     }
-                    window.location.href = "/process?" + JSON.stringify({[k]: v});
+                    fetch("/process?" + JSON.stringify({[k]: v}));
                 }
-                
+
                 function sendConfig() {
                     let ssid = document.getElementById('ssid').value;
                     let pwd = document.getElementById('pwd').value;
                     let mqtt = document.getElementById('mqtt').value;
                     let device_name = document.getElementById('device_name').value;
-                    window.location.href = "/process?" + JSON.stringify({"ssid": ssid, "pwd": pwd, "mqtt": mqtt, "device_name": device_name});
+                    fetch("/process?" + JSON.stringify({"ssid": ssid, "pwd": pwd, "mqtt": mqtt, "device_name": device_name}));
                 }
 
-                function trigger_ota() {
-                    window.location.href = "/process?" + JSON.stringify({"ota": true});
+                function trigger_ota(btn) {
+                    btn.disabled = true;
+                    btn.innerText = 'Triggering...';
+                    fetch("/process?" + JSON.stringify({"ota": true})).then((res) => {
+                        if (!res.ok) throw new Error("HTTP " + res.status);
+                        btn.innerText = 'Updating Device...';
+                    }).catch((e) => {
+                        btn.disabled = false;
+                        btn.innerText = 'Failed. Retry?';
+                    });
                 }
             )
             "\n</script>\n"
             "</head>\n"
             "<body>\n"
             "<h1>FreeHouse CH-4 Relay</h1>\n"
-            
+
             "<h2>Relay Control</h2>\n"
-            "<input name='mode' onclick='processMessage(this, \"mode\", \"on\")' type='radio' " << (strcmp(current_cfg.mode, "on") == 0 ? "checked" : "") << "/> ON (Relays 1 & 2)<br>\n"
-            "<input name='mode' onclick='processMessage(this, \"mode\", \"off\")' type='radio' " << (strcmp(current_cfg.mode, "off") == 0 ? "checked" : "") << "/> OFF (Relays 1 & 2)<br>\n"
-            "<input name='mode' onclick='processMessage(this, \"mode\", \"clock\")' type='radio' " << (strcmp(current_cfg.mode, "clock") == 0 ? "checked" : "") << "/> CLOCK (Relays 1 & 2)<br>\n"
+            "<input name='mode' onclick='processMessage(this, \"mode\", \"on\")' type='radio' " << (strcmp(current_cfg.mode, "on") == 0 ? "checked" : "") << "/> ON<br>\n"
+            "<input name='mode' onclick='processMessage(this, \"mode\", \"clock\")' type='radio' " << (strcmp(current_cfg.mode, "clock") == 0 ? "checked" : "") << "/> CLOCK<br>\n"
+            "<input name='mode' onclick='processMessage(this, \"mode\", \"off\")' type='radio' " << (strcmp(current_cfg.mode, "off") == 0 ? "checked" : "") << "/> OFF<br>\n"
             "<br>\n"
-            "<input name='pause' onchange='processMessage(this, \"pause\", this.checked)' type='checkbox' " << (current_cfg.pause ? "checked" : "") << "/> Pause (Relay 3)<br>\n"
+            "<input name='pause' onchange='processMessage(this, \"pause\", this.checked)' type='checkbox' " << (current_cfg.pause ? "checked" : "") << "/> Pause<br>\n"
 
             "<h2>Networking Config</h2>"
             "<table>\n"
@@ -152,9 +160,9 @@ public:
             "<tr><td>Device Name</td><td><input id='device_name' value=\"" << current_cfg.device_name << "\"></td></tr>\n"
             "</table>\n"
             "<button onclick='sendConfig()'>Save Network Config</button>\n"
-            
+
             "<h2>Actions</h2>\n"
-            "<button onclick='trigger_ota()'>Trigger HTTP OTA Update</button>\n"
+            "<button id='ota_btn' onclick='trigger_ota(this)'>Trigger HTTP OTA Update</button>\n"
             "<button onclick='window.location.href = \"/close\"'>Restart / Apply WiFi</button>\n"
             "</body></html>";
 
