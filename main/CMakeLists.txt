@@ -1,0 +1,23 @@
+idf_component_register(
+    SRCS
+        "main.c"
+        "board.c"
+        "config.c"
+        "relays.c"
+        "mqtt.c"
+        "ota_http.cpp"
+        "web.cpp"
+    INCLUDE_DIRS
+        "."
+    REQUIRES
+        nvs_flash
+        esp_wifi
+        driver
+        mqtt
+        fh_portal
+        json
+        esp_http_client
+        esp_http_server
+        esp_https_ota
+        app_update
+)
