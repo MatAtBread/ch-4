@@ -34,12 +34,13 @@
 
 const char *TAG = "CH-4";
 
+int blink_delay = 5000;
+
 /* ── LED ────────────────────────────────────────────────────────────────── */
 #define BLINK_GPIO CONFIG_BLINK_GPIO
 
-static uint8_t s_led_state = 0;
-static void blink_led(void) {
-    gpio_set_level(BLINK_GPIO, s_led_state);
+static void blink_led(int state) {
+    gpio_set_level(BLINK_GPIO, !state);
 }
 static void configure_led(void) {
     gpio_reset_pin(BLINK_GPIO);
@@ -145,8 +146,6 @@ void app_main(void) {
     // Always apply loaded (or default) relays state to GPIO immediately on boot
     relays_apply(cfg.mode, cfg.pause);
 
-    int blink_delay = 1000;
-
     if (!has_config) {
         ESP_LOGW(TAG, "Missing configuration, falling back to Captive Portal");
         blink_delay = 125;
@@ -163,7 +162,7 @@ void app_main(void) {
             // Start background config so we can still change it without wiping
             web_config_start();
             mqtt_start(cfg.mqtt_url, cfg.device_name[0] ? cfg.device_name : "CH4");
-            blink_delay = 1000;
+            blink_delay = 5000;
         } else {
             ESP_LOGW(TAG, "STA connection failed, falling back to Captive Portal");
             blink_delay = 125;
@@ -177,8 +176,9 @@ void app_main(void) {
 
     /* Main loop – heartbeat */
     while (1) {
-        blink_led();
-        s_led_state = !s_led_state;
+        blink_led(1);
+        vTaskDelay(pdMS_TO_TICKS(125));
+        blink_led(0);
         vTaskDelay(pdMS_TO_TICKS(blink_delay));
     }
 }

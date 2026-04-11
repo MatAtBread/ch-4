@@ -14,6 +14,8 @@
 #include "freertos/semphr.h"
 
 extern const char *TAG;
+extern int blink_delay;
+
 static esp_mqtt_client_handle_t mqtt_client = NULL;
 static char device_topic_base[64] = {0};
 static SemaphoreHandle_t publish_mutex = NULL;
@@ -102,6 +104,7 @@ void process_state_json(const char *json_payload) {
     cJSON *ota_item = cJSON_GetObjectItem(root, "ota");
     if (ota_item && cJSON_IsTrue(ota_item)) {
         ESP_LOGI(TAG, "OTA requested via JSON payload");
+        blink_delay = 175; // faster blink to indicate OTA mode
         start_http_ota();
     }
 
