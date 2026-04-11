@@ -38,37 +38,6 @@ const char *TAG = "CH-4";
 #define BLINK_GPIO CONFIG_BLINK_GPIO
 
 static uint8_t s_led_state = 0;
-#ifdef CONFIG_BLINK_LED_STRIP
-static led_strip_handle_t led_strip;
-static void blink_led(void) {
-    if (s_led_state) {
-        led_strip_set_pixel(led_strip, 0, 16, 16, 16);
-        led_strip_refresh(led_strip);
-    } else {
-        led_strip_clear(led_strip);
-    }
-}
-static void configure_led(void) {
-    led_strip_config_t strip_config = {
-        .strip_gpio_num = BLINK_GPIO,
-        .max_leds       = 1,
-    };
-#if CONFIG_BLINK_LED_STRIP_BACKEND_RMT
-    led_strip_rmt_config_t rmt_config = {
-        .resolution_hz      = 10 * 1000 * 1000,
-        .flags.with_dma     = false,
-    };
-    ESP_ERROR_CHECK(led_strip_new_rmt_device(&strip_config, &rmt_config, &led_strip));
-#elif CONFIG_BLINK_LED_STRIP_BACKEND_SPI
-    led_strip_spi_config_t spi_config = {
-        .spi_bus        = SPI2_HOST,
-        .flags.with_dma = true,
-    };
-    ESP_ERROR_CHECK(led_strip_new_spi_device(&strip_config, &spi_config, &led_strip));
-#endif
-    led_strip_clear(led_strip);
-}
-#elif CONFIG_BLINK_LED_GPIO
 static void blink_led(void) {
     gpio_set_level(BLINK_GPIO, s_led_state);
 }
@@ -76,7 +45,6 @@ static void configure_led(void) {
     gpio_reset_pin(BLINK_GPIO);
     gpio_set_direction(BLINK_GPIO, GPIO_MODE_OUTPUT);
 }
-#endif 
 
 /* ── NVS ─────────────────────────────────────────────────────────────────── */
 static void nvs_init(void) {
@@ -106,7 +74,7 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t e
             ESP_LOGI(TAG, "retry to connect to the AP");
         } else {
             // Signal failure
-            xEventGroupSetBits(wifi_event_group, 0); 
+            xEventGroupSetBits(wifi_event_group, 0);
         }
         ESP_LOGI(TAG,"connect to the AP fail");
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
@@ -124,11 +92,11 @@ static bool connect_sta(ch4_config_t *cfg) {
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
     esp_netif_t *netif = esp_netif_create_default_wifi_sta();
-    
+
     char hostname[64];
     uint8_t mac[6];
     esp_read_mac(mac, ESP_MAC_WIFI_STA);
-    
+
     // Lowercase the device name for the hostname fallback
     char lower_dev[32] = {0};
     if (cfg->device_name[0]) {
@@ -173,7 +141,7 @@ void app_main(void) {
 
     ch4_config_t cfg;
     bool has_config = config_load(&cfg);
-    
+
     // Always apply loaded (or default) relays state to GPIO immediately on boot
     relays_apply(cfg.mode, cfg.pause);
 
@@ -182,12 +150,12 @@ void app_main(void) {
     if (!has_config) {
         ESP_LOGW(TAG, "Missing configuration, falling back to Captive Portal");
         blink_delay = 125;
-        
+
         ESP_ERROR_CHECK(esp_netif_init());
         ESP_ERROR_CHECK(esp_event_loop_create_default());
 
         captive_portal_start();
-        
+
     } else {
         ESP_LOGI(TAG, "Config loaded. Connecting to %s", cfg.ssid);
         if (connect_sta(&cfg)) {
@@ -202,7 +170,7 @@ void app_main(void) {
             // Teardown STA and boot soft AP
             esp_wifi_stop();
             esp_wifi_deinit();
-            
+
             captive_portal_start();
         }
     }
