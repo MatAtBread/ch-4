@@ -21,6 +21,7 @@
 #include "esp_event.h"
 #include "esp_netif.h"
 #include "esp_mac.h"
+#include "esp_timer.h"
 
 #include "board.h"
 #include "config.h"
@@ -61,27 +62,32 @@ static void nvs_init(void) {
 /* ── WiFi STA ───────────────────────────────────────────────────────────── */
 static EventGroupHandle_t wifi_event_group;
 #define WIFI_CONNECTED_BIT BIT0
+#define WIFI_FAIL_BIT      BIT1
 
-static int s_retry_num = 0;
-#define STA_MAX_RETRY 5
+// Time-based retry: keep trying for 5 minutes before falling back to captive portal.
+// This also ensures post-boot reconnection keeps working after a transient outage —
+// the timer resets on each successful IP acquisition.
+static int64_t wifi_fail_start_us = 0;
+#define WIFI_RETRY_TIMEOUT_US (5LL * 60 * 1000 * 1000)
 
 static void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data) {
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
         esp_wifi_connect();
     } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
-        if (s_retry_num < STA_MAX_RETRY) {
+        int64_t now = esp_timer_get_time();
+        if (wifi_fail_start_us == 0) wifi_fail_start_us = now;
+        if (now - wifi_fail_start_us < WIFI_RETRY_TIMEOUT_US) {
             esp_wifi_connect();
-            s_retry_num++;
             ESP_LOGI(TAG, "retry to connect to the AP");
         } else {
-            // Signal failure
-            xEventGroupSetBits(wifi_event_group, 0);
+            wifi_fail_start_us = 0;
+            xEventGroupSetBits(wifi_event_group, WIFI_FAIL_BIT);
+            ESP_LOGW(TAG, "WiFi failed after 5 min, falling back to captive portal");
         }
-        ESP_LOGI(TAG,"connect to the AP fail");
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
         ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
         ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
-        s_retry_num = 0;
+        wifi_fail_start_us = 0;
         xEventGroupSetBits(wifi_event_group, WIFI_CONNECTED_BIT);
     }
 }
@@ -128,7 +134,8 @@ static bool connect_sta(ch4_config_t *cfg) {
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
     ESP_ERROR_CHECK(esp_wifi_start());
 
-    EventBits_t bits = xEventGroupWaitBits(wifi_event_group, WIFI_CONNECTED_BIT, pdFALSE, pdFALSE, portMAX_DELAY);
+    EventBits_t bits = xEventGroupWaitBits(wifi_event_group, WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
+                                           pdFALSE, pdFALSE, portMAX_DELAY);
     return (bits & WIFI_CONNECTED_BIT) != 0;
 }
 

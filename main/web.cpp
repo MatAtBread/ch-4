@@ -24,12 +24,13 @@ static uint8_t hexValue(const char c) {
 }
 
 static void unencode(char *buf, const char *src, int size) {
-    while (*src && size) {
+    while (*src && size > 1) {
         if (*src == '%') {
             auto msn = hexValue(src[1]);
             auto lsn = hexValue(src[2]);
             src += 3;
             *buf++ = (char)(msn * 16 + lsn);
+            size--;
         } else {
             *buf++ = *src++;
             size--;
