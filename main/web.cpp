@@ -96,7 +96,7 @@ public:
             esp_restart();
         } else if (strcmp(req->uri, "/") != 0) {
             httpd_resp_set_status(req, "302 Found");
-            httpd_resp_set_hdr(req, "Location", "/");
+            httpd_resp_set_hdr(req, "Location", get_portal_redirect_url());
             const char *resp_str = "<html><body>Redirecting</body></html>";
             httpd_resp_send(req, resp_str, HTTPD_RESP_USE_STRLEN);
             return ESP_OK;
