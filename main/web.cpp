@@ -94,7 +94,7 @@ public:
             }
         } else if (startsWith(req->uri, "/close")) {
             esp_restart();
-        } else if (strcmp(req->uri, "/") != 0) {
+        } else if (is_captive_portal_active() && strcmp(req->uri, "/") != 0) {
             httpd_resp_set_status(req, "302 Found");
             httpd_resp_set_hdr(req, "Location", get_portal_redirect_url());
             const char *resp_str = "<html><body>Redirecting</body></html>";
